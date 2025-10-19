@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Upload,
   FileText,
@@ -11,6 +11,8 @@ import {
   AlertCircle,
   Loader2,
   X,
+  Plus,
+  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,11 +27,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+interface ExtractField {
+  id: string;
+  label: string;
+  key: string;
+  enabled: boolean;
+  pattern?: string;
+}
 
 interface ExtractedData {
-  referenceNo: string;
-  date: string;
-  grossWeight: string;
+  page: number;
+  [key: string]: string | number;
 }
 
 interface UploadedFile {
@@ -38,14 +58,133 @@ interface UploadedFile {
   size: string;
   status: "processing" | "completed" | "error";
   progress?: number;
-  extractedData?: ExtractedData;
+  extractedData?: ExtractedData[];
   errorMessage?: string;
   file?: File;
 }
 
+const DEFAULT_FIELDS: ExtractField[] = [
+  {
+    id: "referenceNo",
+    label: "Reference No",
+    key: "referenceNo",
+    enabled: true,
+    pattern: "Reference\\s*No\\.?\\s*[:-]?\\s*([A-Z0-9\\-/]+)",
+  },
+  {
+    id: "date",
+    label: "Date",
+    key: "date",
+    enabled: true,
+    pattern: "Date\\s*[:-]?\\s*(\\d{1,2}[-/.]\\d{1,2}[-/.]\\d{2,4})",
+  },
+  {
+    id: "grossWeight",
+    label: "Gross Weight",
+    key: "grossWeight",
+    enabled: true,
+    pattern: "Gross\\s*Weight\\s*[:-]?\\s*([\\d,.\\s]*(?:KG|kg))",
+  },
+];
+
 export function Extractor() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [extractFields, setExtractFields] =
+    useState<ExtractField[]>(DEFAULT_FIELDS);
+  const [isFieldDialogOpen, setIsFieldDialogOpen] = useState(false);
+  const [newFieldLabel, setNewFieldLabel] = useState("");
+  const [newFieldPattern, setNewFieldPattern] = useState("");
+
+  const processFile = useCallback(
+    async (file: UploadedFile) => {
+      if (!file.file) return;
+
+      setUploadedFiles((prev) =>
+        prev.map((f) =>
+          f.id === file.id ? { ...f, status: "processing", progress: 30 } : f
+        )
+      );
+
+      try {
+        const formData = new FormData();
+        formData.append("pdf", file.file);
+        const enabledFields = extractFields.filter((f) => f.enabled);
+        formData.append("fields", JSON.stringify(enabledFields));
+
+        setUploadedFiles((prev) =>
+          prev.map((f) => (f.id === file.id ? { ...f, progress: 60 } : f))
+        );
+
+        const response = await fetch("/api/ocr/pdf", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "서버에서 오류가 발생했습니다.");
+        }
+
+        const extractedData = await response.json();
+
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === file.id
+              ? {
+                  ...f,
+                  status: "completed",
+                  extractedData:
+                    extractedData.length > 0 ? extractedData : undefined,
+                  errorMessage:
+                    extractedData.length === 0
+                      ? "추출할 데이터를 찾지 못했습니다."
+                      : undefined,
+                  progress: 100,
+                }
+              : f
+          )
+        );
+      } catch (error) {
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === file.id
+              ? {
+                  ...f,
+                  status: "error",
+                  errorMessage:
+                    error instanceof Error
+                      ? error.message
+                      : "PDF 처리 중 알 수 없는 오류가 발생했습니다.",
+                }
+              : f
+          )
+        );
+      }
+    },
+    [extractFields]
+  );
+
+  const handleFiles = useCallback(
+    (files: FileList) => {
+      Array.from(files).forEach((file) => {
+        if (file.type === "application/pdf") {
+          const newFile: UploadedFile = {
+            id: Date.now() + Math.random(),
+            name: file.name,
+            size: formatFileSize(file.size),
+            status: "processing",
+            progress: 0,
+            file: file,
+          };
+
+          setUploadedFiles((prev) => [...prev, newFile]);
+          processFile(newFile);
+        }
+      });
+    },
+    [processFile]
+  );
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -57,86 +196,23 @@ export function Extractor() {
     }
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFiles(e.dataTransfer.files);
-    }
-  }, []);
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleFiles(e.dataTransfer.files);
+      }
+    },
+    [handleFiles]
+  );
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       handleFiles(e.target.files);
     }
-  };
-
-  const handleFiles = (files: FileList) => {
-    Array.from(files).forEach((file) => {
-      if (file.type === "application/pdf") {
-        const newFile: UploadedFile = {
-          id: Date.now() + Math.random(),
-          name: file.name,
-          size: formatFileSize(file.size),
-          status: "processing",
-          progress: 0,
-          file: file,
-        };
-
-        setUploadedFiles((prev) => [...prev, newFile]);
-        processFile(newFile);
-      }
-    });
-  };
-
-  const processFile = async (file: UploadedFile) => {
-    try {
-      // 진행률 시뮬레이션
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        setUploadedFiles((prev) =>
-          prev.map((f) => (f.id === file.id ? { ...f, progress } : f))
-        );
-      }
-
-      const extractedData = await extractDataFromPDF(file.file!);
-
-      setUploadedFiles((prev) =>
-        prev.map((f) =>
-          f.id === file.id
-            ? {
-                ...f,
-                status: "completed",
-                extractedData,
-                progress: 100,
-              }
-            : f
-        )
-      );
-    } catch (error) {
-      setUploadedFiles((prev) =>
-        prev.map((f) =>
-          f.id === file.id
-            ? {
-                ...f,
-                status: "error",
-                errorMessage: "PDF 처리 중 오류가 발생했습니다.",
-              }
-            : f
-        )
-      );
-    }
-  };
-
-  // PDF에서 데이터 추출 (실제 구현에서는 PDF 파싱 라이브러리 사용)
-  const extractDataFromPDF = async (file: File): Promise<ExtractedData> => {
-    return {
-      referenceNo: "CO-2024-001234",
-      date: "2024-01-15",
-      grossWeight: "1,250.5 KG",
-    };
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -153,60 +229,69 @@ export function Extractor() {
     setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
   };
 
-  const downloadExcel = (file: UploadedFile) => {
-    if (!file.extractedData) return;
-
-    // Excel 파일 생성 및 다운로드
-    const data = [
-      ["항목", "값"],
-      ["Reference No", file.extractedData.referenceNo],
-      ["Date", file.extractedData.date],
-      ["Gross Weight", file.extractedData.grossWeight],
-      ["파일명", file.name],
-      ["추출일시", new Date().toLocaleString("ko-KR")],
-    ];
-
-    const csvContent = data.map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `${file.name.replace(".pdf", "")}_extracted.csv`
+  const toggleField = (fieldId: string) => {
+    setExtractFields((prev) =>
+      prev.map((f) => (f.id === fieldId ? { ...f, enabled: !f.enabled } : f))
     );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  };
+
+  const addCustomField = () => {
+    if (!newFieldLabel.trim()) return;
+    const newField: ExtractField = {
+      id: `custom_${Date.now()}`,
+      label: newFieldLabel,
+      key: newFieldLabel.toLowerCase().replace(/\s+/g, "_"),
+      enabled: true,
+      pattern: newFieldPattern || undefined,
+    };
+    setExtractFields((prev) => [...prev, newField]);
+    setNewFieldLabel("");
+    setNewFieldPattern("");
+    setIsFieldDialogOpen(false);
+  };
+
+  const removeField = (fieldId: string) => {
+    setExtractFields((prev) => prev.filter((f) => f.id !== fieldId));
+  };
+
+  const resetFields = () => {
+    setExtractFields(DEFAULT_FIELDS);
   };
 
   const downloadAllExcel = () => {
     const completedFiles = uploadedFiles.filter(
       (f) => f.status === "completed" && f.extractedData
     );
-
     if (completedFiles.length === 0) return;
 
-    const allData = [
-      ["파일명", "Reference No", "Date", "Gross Weight", "추출일시"],
-      ...completedFiles.map((file) => [
-        file.name,
-        file.extractedData!.referenceNo,
-        file.extractedData!.date,
-        file.extractedData!.grossWeight,
-        new Date().toLocaleString("ko-KR"),
-      ]),
+    const enabledFields = extractFields.filter((f) => f.enabled);
+    const allData: (string | number)[][] = [
+      ["파일명", "페이지", ...enabledFields.map((f) => f.label), "추출일시"],
     ];
 
+    completedFiles.forEach((file) => {
+      file.extractedData?.forEach((pageData) => {
+        allData.push([
+          file.name,
+          pageData.page,
+          ...enabledFields.map(
+            (field) => pageData[field.key] || "추출 실패"
+          ),
+          new Date().toLocaleString("ko-KR"),
+        ]);
+      });
+    });
+
     const csvContent = allData.map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `certificate_of_origin_${new Date().toISOString().split("T")[0]}.csv`
+      `all_extracted_data_${new Date().toISOString().split("T")[0]}.csv`
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
@@ -227,7 +312,10 @@ export function Extractor() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, errorMessage?: string) => {
+    if (status === "completed" && errorMessage) {
+      return <Badge className="bg-yellow-100 text-yellow-800">데이터 없음</Badge>;
+    }
     switch (status) {
       case "completed":
         return <Badge className="bg-green-100 text-green-800">완료</Badge>;
@@ -241,36 +329,161 @@ export function Extractor() {
   };
 
   const completedFiles = uploadedFiles.filter((f) => f.status === "completed");
+  const totalExtractedRows = useMemo(
+    () =>
+      completedFiles.reduce(
+        (acc, file) => acc + (file.extractedData?.length || 0),
+        0
+      ),
+    [completedFiles]
+  );
+
   const processingFiles = uploadedFiles.filter(
     (f) => f.status === "processing"
   );
+  const enabledFields = extractFields.filter((f) => f.enabled);
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
-                원산지 증명서 데이터 추출
+                PDF 데이터 추출 (Multi-page)
               </h3>
               <p className="text-gray-600">
-                Certificate of Origin에서 Reference No, Date, Gross Weight를
-                추출합니다
+                PDF의 각 페이지에서 데이터를 추출합니다.
               </p>
             </div>
-            {completedFiles.length > 0 && (
-              <Button
-                onClick={downloadAllExcel}
-                className="bg-green-600 hover:bg-green-700"
+            <div className="flex items-center space-x-2">
+              <Dialog
+                open={isFieldDialogOpen}
+                onOpenChange={setIsFieldDialogOpen}
               >
-                <Download className="w-4 h-4 mr-2" />
-                전체 Excel 다운로드 ({completedFiles.length}개)
-              </Button>
-            )}
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Settings2 className="w-4 h-4 mr-2" />
+                    추출 필드 설정
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>추출 필드 설정</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div>
+                      <Label className="text-base font-semibold mb-3 block">
+                        추출할 필드 선택
+                      </Label>
+                      <ScrollArea className="h-[300px] rounded-md border p-4">
+                        <div className="space-y-3">
+                          {extractFields.map((field) => (
+                            <div
+                              key={field.id}
+                              className="flex items-center justify-between p-3 border rounded-lg"
+                            >
+                              <div className="flex items-center space-x-3 flex-1">
+                                <Checkbox
+                                  id={field.id}
+                                  checked={field.enabled}
+                                  onCheckedChange={() => toggleField(field.id)}
+                                />
+                                <div className="flex-1">
+                                  <Label
+                                    htmlFor={field.id}
+                                    className="font-medium cursor-pointer"
+                                  >
+                                    {field.label}
+                                  </Label>
+                                  {field.pattern && (
+                                    <p className="text-xs text-gray-500 mt-1 font-mono">
+                                      {field.pattern}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {!DEFAULT_FIELDS.find(
+                                (f) => f.id === field.id
+                              ) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeField(field.id)}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                    <div className="border-t pt-4">
+                      <Label className="text-base font-semibold mb-3 block">
+                        커스텀 필드 추가
+                      </Label>
+                      <div className="space-y-3">
+                        <div>
+                          <Label htmlFor="field-label">필드 이름 *</Label>
+                          <Input
+                            id="field-label"
+                            placeholder="예: Exporter Name"
+                            value={newFieldLabel}
+                            onChange={(e) => setNewFieldLabel(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="field-pattern">
+                            추출 패턴 (정규표현식, 선택사항)
+                          </Label>
+                          <Input
+                            id="field-pattern"
+                            placeholder="예: Exporter\\s*[:-]?\\s*(.+)"
+                            value={newFieldPattern}
+                            onChange={(e) => setNewFieldPattern(e.target.value)}
+                            className="font-mono text-sm"
+                          />
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button onClick={addCustomField} className="flex-1">
+                            <Plus className="w-4 h-4 mr-2" />
+                            필드 추가
+                          </Button>
+                          <Button variant="outline" onClick={resetFields}>
+                            기본값으로 리셋
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
-          {/* 업로드 영역 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">
+                추출 대상 필드 ({enabledFields.length}개)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {enabledFields.map((field) => (
+                  <Badge key={field.id} variant="secondary" className="text-sm">
+                    {field.label}
+                  </Badge>
+                ))}
+                {enabledFields.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    추출할 필드를 선택해주세요.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardContent className="p-6">
               <div
@@ -286,10 +499,10 @@ export function Extractor() {
               >
                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-lg font-medium text-gray-700 mb-2">
-                  원산지 증명서 PDF 파일을 드래그하거나 클릭하여 업로드
+                  PDF 파일을 드래그하거나 클릭하여 업로드
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
-                  PDF 파일만 지원됩니다
+                  여러 페이지를 포함한 PDF를 지원합니다.
                 </p>
                 <input
                   type="file"
@@ -298,79 +511,88 @@ export function Extractor() {
                   onChange={handleFileInput}
                   className="hidden"
                   id="file-upload"
+                  disabled={enabledFields.length === 0}
                 />
                 <label htmlFor="file-upload">
-                  <Button asChild>
+                  <Button asChild disabled={enabledFields.length === 0}>
                     <span>파일 선택</span>
                   </Button>
                 </label>
+                {enabledFields.length === 0 && (
+                  <p className="text-xs text-red-500 mt-2">
+                    먼저 추출할 필드를 선택해주세요.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* 추출 결과 테이블 */}
-          {completedFiles.length > 0 && (
+          {totalExtractedRows > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>추출 완료된 데이터</CardTitle>
+                <Button
+                  onClick={downloadAllExcel}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Excel 다운로드 ({totalExtractedRows}개 행)
+                </Button>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>파일명</TableHead>
-                      <TableHead>Reference No</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Gross Weight</TableHead>
-                      <TableHead>작업</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {completedFiles.map((file) => (
-                      <TableRow key={file.id}>
-                        <TableCell className="font-medium">
-                          {file.name}
-                        </TableCell>
-                        <TableCell>{file.extractedData?.referenceNo}</TableCell>
-                        <TableCell>{file.extractedData?.date}</TableCell>
-                        <TableCell>{file.extractedData?.grossWeight}</TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => downloadExcel(file)}
-                            >
-                              <Download className="w-3 h-3 mr-1" />
-                              Excel
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => removeFile(file.id)}
-                            >
-                              <X className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                <ScrollArea className="w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[200px]">파일명</TableHead>
+                        <TableHead className="w-[80px]">페이지</TableHead>
+                        {enabledFields.map((field) => (
+                          <TableHead key={field.id} className="min-w-[150px]">
+                            {field.label}
+                          </TableHead>
+                        ))}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {completedFiles.map((file) =>
+                        file.extractedData?.map((pageData) => (
+                          <TableRow key={`${file.id}-${pageData.page}`}>
+                            <TableCell className="font-medium">
+                              {file.name}
+                            </TableCell>
+                            <TableCell>{pageData.page}</TableCell>
+                            {enabledFields.map((field) => (
+                              <TableCell key={field.id}>
+                                {pageData[field.key] || "-"}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
               </CardContent>
             </Card>
           )}
 
-          {/* 처리 중인 파일들 */}
           {(processingFiles.length > 0 ||
-            uploadedFiles.some((f) => f.status === "error")) && (
+            uploadedFiles.some(
+              (f) =>
+                f.status === "error" ||
+                (f.status === "completed" && f.errorMessage)
+            )) && (
             <Card>
               <CardHeader>
                 <CardTitle>처리 현황</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {uploadedFiles
-                  .filter((f) => f.status !== "completed")
+                  .filter(
+                    (f) =>
+                      f.status !== "completed" ||
+                      (f.status === "completed" && f.errorMessage)
+                  )
                   .map((file) => (
                     <div key={file.id} className="p-4 border rounded-lg">
                       <div className="flex items-center justify-between mb-2">
@@ -381,7 +603,7 @@ export function Extractor() {
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          {getStatusBadge(file.status)}
+                          {getStatusBadge(file.status, file.errorMessage)}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -403,8 +625,14 @@ export function Extractor() {
                         <Progress value={file.progress} className="mb-3" />
                       )}
 
-                      {file.status === "error" && (
-                        <Alert className="mt-2">
+                      {(file.status === "error" ||
+                        (file.status === "completed" && file.errorMessage)) && (
+                        <Alert
+                          variant={
+                            file.status === "error" ? "destructive" : "default"
+                          }
+                          className="mt-2"
+                        >
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription>
                             {file.errorMessage}
@@ -416,37 +644,6 @@ export function Extractor() {
               </CardContent>
             </Card>
           )}
-
-          {/* 사용 가이드 */}
-          <Card>
-            <CardHeader>
-              <CardTitle>사용 가이드</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="text-sm text-gray-600">
-                <h4 className="font-medium mb-2">추출되는 데이터:</h4>
-                <ul className="space-y-1 ml-4">
-                  <li>
-                    • <strong>Reference No</strong>: 원산지 증명서 참조번호
-                  </li>
-                  <li>
-                    • <strong>Date</strong>: 발급일자
-                  </li>
-                  <li>
-                    • <strong>Gross Weight</strong>: 총중량
-                  </li>
-                </ul>
-              </div>
-              <div className="text-sm text-gray-600">
-                <h4 className="font-medium mb-2">지원 형식:</h4>
-                <ul className="space-y-1 ml-4">
-                  <li>• PDF 파일만 지원</li>
-                  <li>• 한 번에 여러 파일 업로드 가능</li>
-                  <li>• 추출된 데이터는 Excel(CSV) 형식으로 다운로드</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>
