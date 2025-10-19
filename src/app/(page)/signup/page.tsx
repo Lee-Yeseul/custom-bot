@@ -1,8 +1,7 @@
-"use client";
+'use client';
 
-import type React from "react";
-
-import { useState } from "react";
+import type React from 'react';
+import { useState } from 'react';
 import {
   MessageCircle,
   Eye,
@@ -13,34 +12,39 @@ import {
   Building,
   ArrowRight,
   ArrowLeft,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+  CheckCircle,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import Link from "next/link";
+} from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
-    name: "",
-    company: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
+    name: '',
+    company: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const supabase = createClient();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -51,30 +55,62 @@ export default function SignupPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
 
     if (!agreeTerms) {
-      setError("서비스 약관에 동의해주세요");
+      setError('서비스 약관에 동의해주세요');
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError("비밀번호가 일치하지 않습니다");
+      setError('비밀번호가 일치하지 않습니다');
       return;
     }
 
     if (formData.password.length < 8) {
-      setError("비밀번호는 8자 이상이어야 합니다");
+      setError('비밀번호는 8자 이상이어야 합니다');
       return;
     }
 
     setIsLoading(true);
 
-    // 시뮬레이션: 실제로는 API 호출
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 1500);
+    const { error } = await supabase.auth.signUp({
+      email: formData.email,
+      password: formData.password,
+      options: {
+        data: {
+          full_name: formData.name,
+          company_name: formData.company,
+        },
+      },
+    });
+
+    setIsLoading(false);
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setIsSuccess(true);
+    }
   };
+
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 text-center shadow-xl">
+          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
+          <h1 className="text-2xl font-bold mb-3">회원가입 요청 완료</h1>
+          <p className="text-gray-600 mb-6">
+            입력하신 이메일 주소로 인증 링크를 발송했습니다. <br />
+            이메일을 확인하고 링크를 클릭하여 회원가입을 완료해주세요.
+          </p>
+          <Button asChild className="w-full bg-blue-600 hover:bg-blue-700">
+            <Link href="/login">로그인 페이지로 이동</Link>
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
@@ -171,7 +207,7 @@ export default function SignupPage() {
                   <Input
                     id="password"
                     name="password"
-                    type={showPassword ? "text" : "password"}
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="8자 이상 입력"
                     value={formData.password}
                     onChange={handleChange}
@@ -199,7 +235,7 @@ export default function SignupPage() {
                   <Input
                     id="confirmPassword"
                     name="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
+                    type={showConfirmPassword ? 'text' : 'password'}
                     placeholder="비밀번호 재입력"
                     value={formData.confirmPassword}
                     onChange={handleChange}
@@ -235,8 +271,8 @@ export default function SignupPage() {
                 >
                   <Link href="/terms" className="text-blue-600 hover:underline">
                     서비스 약관
-                  </Link>{" "}
-                  및{" "}
+                  </Link>{' '}
+                  및{' '}
                   <Link
                     href="/privacy"
                     className="text-blue-600 hover:underline"
@@ -266,7 +302,7 @@ export default function SignupPage() {
               </Button>
 
               <div className="pt-4 text-center text-sm text-gray-600">
-                이미 계정이 있으신가요?{" "}
+                이미 계정이 있으신가요?{' '}
                 <Link
                   href="/login"
                   className="text-blue-600 hover:underline font-medium"
