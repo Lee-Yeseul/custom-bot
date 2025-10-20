@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 
 interface NewsItem {
   id: number;
@@ -41,23 +42,28 @@ export default function NewsDashboard() {
   const [sortedCategories, setSortedCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
     async function getNewsData() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/news');
+        const response = await fetch(`/api/news?page=${currentPage}&pageSize=${pageSize}`);
 
         if (!response.ok) {
           throw new Error(`Failed to fetch news: ${response.statusText}`);
         }
 
-        const { news } = await response.json();
+        const { news, count } = await response.json();
 
         if (!news) {
           throw new Error('No news data found');
         }
+
+        setTotalCount(count || 0);
 
         // Add category to each news item
         const categorizedNews = news.map((item: Omit<NewsItem, 'category'>) => ({
@@ -87,7 +93,9 @@ export default function NewsDashboard() {
     }
 
     getNewsData();
-  }, []);
+  }, [currentPage]);
+
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <div className="space-y-8">
@@ -121,38 +129,57 @@ export default function NewsDashboard() {
           </CardContent>
         </Card>
       ) : sortedCategories.length > 0 ? (
-        sortedCategories.map((category) => (
-          <Card key={category}>
-            <CardHeader>
-              <CardTitle>{category}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {groupedNews[category].map((item, index) => (
-                <article key={item.link}>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-4">
-                      <Badge variant="outline">
-                        {new Date(item.published_date).toLocaleDateString('ko-KR')}
-                      </Badge>
-                      <h3 className="text-lg font-semibold">
-                        <a
-                          href={item.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          {item.title}
-                        </a>
-                      </h3>
+        <>
+          {sortedCategories.map((category) => (
+            <Card key={category}>
+              <CardHeader>
+                <CardTitle>{category}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {groupedNews[category].map((item, index) => (
+                  <article key={item.link}>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-4">
+                        <Badge variant="outline">
+                          {new Date(item.published_date).toLocaleDateString('ko-KR')}
+                        </Badge>
+                        <h3 className="text-lg font-semibold">
+                          <a
+                            href={item.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            {item.title}
+                          </a>
+                        </h3>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{item.summary}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground">{item.summary}</p>
-                  </div>
-                  {index < groupedNews[category].length - 1 && <Separator className="my-6" />}
-                </article>
-              ))}
-            </CardContent>
-          </Card>
-        ))
+                    {index < groupedNews[category].length - 1 && <Separator className="my-6" />}
+                  </article>
+                ))}
+              </CardContent>
+            </Card>
+          ))}
+          <div className="flex items-center justify-center space-x-4 pt-4">
+            <Button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              이전
+            </Button>
+            <span className="text-sm font-medium">
+              {currentPage} / {totalPages}
+            </span>
+            <Button
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              다음
+            </Button>
+          </div>
+        </>
       ) : (
         <Card>
           <CardContent className="pt-6">
