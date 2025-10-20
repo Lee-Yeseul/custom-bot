@@ -1,173 +1,165 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import {
-  Calendar,
-  Filter,
-  Bell,
-  ExternalLink,
-  ChevronRight,
-  Clock,
-  Tag,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export function NewsDashboard() {
-  const [selectedFilter, setSelectedFilter] = useState("all");
+interface NewsItem {
+  id: number;
+  created_at: string;
+  title: string;
+  link: string;
+  summary: string;
+  published_date: string;
+  source_feed: string;
+  category: string; // Add category property
+}
 
-  const briefingData = [
-    {
-      id: 1,
-      title: "2024년 FTA 원산지 관리 강화 방안 발표",
-      summary:
-        "관세청이 FTA 원산지 증명서 관리 체계를 강화하고, 디지털 원산지 증명서 도입을 추진한다고 발표했습니다.",
-      category: "FTA",
-      source: "관세청",
-      date: "2024-01-15",
-      importance: "high",
-      tags: ["FTA", "원산지", "디지털화"],
-    },
-    {
-      id: 2,
-      title: "중국 수입 전자상거래 관세 정책 변경",
-      summary:
-        "중국에서 개인 구매 한도액이 상향 조정되고, 일부 품목의 관세율이 인하되었습니다.",
-      category: "전자상거래",
-      source: "무역협회",
-      date: "2024-01-14",
-      importance: "medium",
-      tags: ["중국", "전자상거래", "관세율"],
-    },
-    {
-      id: 3,
-      title: "HS코드 2024년 개정사항 안내",
-      summary:
-        "2024년부터 적용되는 HS코드 개정사항과 주요 변경 품목에 대한 상세 안내입니다.",
-      category: "HS코드",
-      source: "관세청",
-      date: "2024-01-13",
-      importance: "high",
-      tags: ["HS코드", "개정", "분류"],
-    },
-  ];
+const categories: Record<string, string[]> = {
+  '통관/물류': ['통관', '수출', '수입', '물류', '특송', '우편', '공항', '항만'],
+  '세금/관세': ['관세', '세금', '부가세', '품목분류', 'HS', '환급'],
+  '밀수/단속': ['밀수', '단속', '마약', '불법', '위조', '짝퉁', '적발'],
+  'FTA/무역': ['FTA', '무역', '협정', '원산지', 'AEO'],
+  '인사/조직': ['인사', '임명', '조직', '개편', '성과', '채용'],
+};
+const defaultCategory = '기타';
 
-  const filters = [
-    { id: "all", label: "전체", count: 15 },
-    { id: "fta", label: "FTA", count: 5 },
-    { id: "ecommerce", label: "전자상거래", count: 3 },
-    { id: "hscode", label: "HS코드", count: 4 },
-    { id: "law", label: "법령개정", count: 3 },
-  ];
-
-  const getImportanceBadge = (importance: string) => {
-    switch (importance) {
-      case "high":
-        return <Badge className="bg-red-100 text-red-800">중요</Badge>;
-      case "medium":
-        return <Badge className="bg-yellow-100 text-yellow-800">보통</Badge>;
-      default:
-        return <Badge className="bg-gray-100 text-gray-800">일반</Badge>;
+function categorizeNews(title: string): string {
+  const content = title.toLowerCase();
+  for (const [category, keywords] of Object.entries(categories)) {
+    if (keywords.some((keyword) => content.includes(keyword))) {
+      return category;
     }
-  };
+  }
+  return defaultCategory;
+}
+
+export default function NewsDashboard() {
+  const [groupedNews, setGroupedNews] = useState<Record<string, NewsItem[]>>({});
+  const [sortedCategories, setSortedCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function getNewsData() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch('/api/news');
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch news: ${response.statusText}`);
+        }
+
+        const { news } = await response.json();
+
+        if (!news) {
+          throw new Error('No news data found');
+        }
+
+        // Add category to each news item
+        const categorizedNews = news.map((item: Omit<NewsItem, 'category'>) => ({
+          ...item,
+          category: categorizeNews(item.title),
+        }));
+
+        const grouped = categorizedNews.reduce((acc: Record<string, NewsItem[]>, item: NewsItem) => {
+          (acc[item.category] = acc[item.category] || []).push(item);
+          return acc;
+        }, {});
+
+        const sorted = Object.keys(grouped).sort((a, b) => {
+          if (a === defaultCategory) return 1;
+          if (b === defaultCategory) return -1;
+          return a.localeCompare(b);
+        });
+
+        setGroupedNews(grouped);
+        setSortedCategories(sorted);
+      } catch (err: any) {
+        console.error('Error fetching news data:', err);
+        setError('최신 보도자료를 불러오는 데 실패했습니다.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    getNewsData();
+  }, []);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Search and Filters - move this to the top */}
-      <div className="bg-white border-b border-gray-200 p-6">
-        <div className="flex items-center space-x-4">
-          <Input placeholder="키워드로 검색..." className="max-w-md" />
-          <div className="flex items-center space-x-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <div className="flex space-x-1">
-              {filters.map((filter) => (
-                <Button
-                  key={filter.id}
-                  variant={selectedFilter === filter.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedFilter(filter.id)}
-                  className="text-xs"
-                >
-                  {filter.label} ({filter.count})
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div className="ml-auto flex items-center space-x-2">
-            <Button variant="outline" size="sm">
-              <Bell className="w-4 h-4 mr-2" />
-              알림 설정
-            </Button>
-            <Button variant="outline" size="sm">
-              <Calendar className="w-4 h-4 mr-2" />
-              오늘
-            </Button>
-          </div>
-        </div>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold">관세청 보도자료</h1>
+        <p className="text-muted-foreground">AI가 요약한 최신 보도자료를 확인하세요.</p>
       </div>
-
-      {/* Briefing List */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="space-y-4">
-          {briefingData.map((item) => (
-            <Card
-              key={item.id}
-              className="hover:shadow-md transition-shadow cursor-pointer"
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      {getImportanceBadge(item.importance)}
-                      <Badge variant="outline">{item.category}</Badge>
-                      <span className="text-xs text-gray-500">
-                        {item.source}
-                      </span>
-                    </div>
-                    <CardTitle className="text-lg leading-tight">
-                      {item.title}
-                    </CardTitle>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 ml-2" />
-                </div>
+      {isLoading ? (
+        <div className="space-y-8">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-1/4" />
               </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-gray-600 text-sm leading-relaxed mb-3">
-                  {item.summary}
-                </p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center text-xs text-gray-500">
-                      <Clock className="w-3 h-3 mr-1" />
-                      {item.date}
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Tag className="w-3 h-3 text-gray-400" />
-                      {item.tags.map((tag, index) => (
-                        <span key={index} className="text-xs text-gray-500">
-                          #{tag}
-                          {index < item.tags.length - 1 && ", "}
-                        </span>
-                      ))}
-                    </div>
+              <CardContent className="space-y-6">
+                {[...Array(2)].map((_, j) => (
+                  <div key={j} className="space-y-2">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Separator className="my-6" />
                   </div>
-                  <Button variant="ghost" size="sm" className="text-xs">
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    원문 보기
-                  </Button>
-                </div>
+                ))}
               </CardContent>
             </Card>
           ))}
         </div>
-
-        {/* Load More */}
-        <div className="text-center mt-6">
-          <Button variant="outline">더 많은 브리핑 보기</Button>
-        </div>
-      </div>
+      ) : error ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-destructive">{error}</p>
+          </CardContent>
+        </Card>
+      ) : sortedCategories.length > 0 ? (
+        sortedCategories.map((category) => (
+          <Card key={category}>
+            <CardHeader>
+              <CardTitle>{category}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {groupedNews[category].map((item, index) => (
+                <article key={item.link}>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-4">
+                      <Badge variant="outline">
+                        {new Date(item.published_date).toLocaleDateString('ko-KR')}
+                      </Badge>
+                      <h3 className="text-lg font-semibold">
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {item.title}
+                        </a>
+                      </h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{item.summary}</p>
+                  </div>
+                  {index < groupedNews[category].length - 1 && <Separator className="my-6" />}
+                </article>
+              ))}
+            </CardContent>
+          </Card>
+        ))
+      ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground">표시할 보도자료가 없습니다.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

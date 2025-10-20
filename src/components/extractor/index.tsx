@@ -9,6 +9,7 @@ import {
   Download,
   CheckCircle,
   AlertCircle,
+  Info,
   Loader2,
   X,
   Plus,
@@ -26,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -274,9 +275,7 @@ export function Extractor() {
         allData.push([
           file.name,
           pageData.page,
-          ...enabledFields.map(
-            (field) => pageData[field.key] || "추출 실패"
-          ),
+          ...enabledFields.map((field) => pageData[field.key] || "추출 실패"),
           new Date().toLocaleString("ko-KR"),
         ]);
       });
@@ -314,7 +313,9 @@ export function Extractor() {
 
   const getStatusBadge = (status: string, errorMessage?: string) => {
     if (status === "completed" && errorMessage) {
-      return <Badge className="bg-yellow-100 text-yellow-800">데이터 없음</Badge>;
+      return (
+        <Badge className="bg-yellow-100 text-yellow-800">데이터 없음</Badge>
+      );
     }
     switch (status) {
       case "completed":
@@ -367,7 +368,7 @@ export function Extractor() {
                     추출 필드 설정
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="min-w-3xl max-h-[680px] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>추출 필드 설정</DialogTitle>
                   </DialogHeader>
@@ -455,6 +456,26 @@ export function Extractor() {
                           </Button>
                         </div>
                       </div>
+
+                      <Alert className="mt-4 text-sm">
+                        <Info className="h-4 w-4" />
+                        <AlertTitle>도움말</AlertTitle>
+                        <AlertDescription className="space-y-2">
+                          <p>
+                            <b>필드 이름</b>: PDF에서 찾고 싶은 항목의
+                            이름(키워드)을 정확하게 입력하세요. (예: `Invoice
+                            No`, `Exporter`)
+                            <br />
+                            기본적으로 프로그램이 키워드를 찾아 그 주변의 값을
+                            자동으로 추출합니다.
+                          </p>
+                          <p>
+                            <b>추출 패턴</b>: 값을 더 정교하게 찾아야 할 때
+                            사용하는 고급 기능입니다. 잘 모르시면 비워두셔도
+                            괜찮습니다.
+                          </p>
+                        </AlertDescription>
+                      </Alert>
                     </div>
                   </div>
                 </DialogContent>

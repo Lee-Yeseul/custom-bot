@@ -61,7 +61,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 로그인하지 않은 사용자가 접근할 수 있는 경로
-  const publicPaths = ['/login', '/signup', '/auth/callback', '/forgot-password', '/reset-password'];
+  const publicPaths = [
+    "/login",
+    "/signup",
+    "/auth/callback",
+    "/forgot-password",
+    "/reset-password",
+  ];
 
   // 사용자가 로그인하지 않았고, 접근하려는 경로가 public 경로가 아닐 경우
   if (!session && !publicPaths.includes(pathname)) {
@@ -81,12 +87,13 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match all request paths except for:
+     * - API routes (/api)
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * - favicon.ico
+     * - image files (svg, png, jpg, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
