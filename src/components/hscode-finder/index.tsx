@@ -31,35 +31,29 @@ export default function HScodeFinder() {
     if (!productDescription.trim()) return;
 
     setIsAnalyzing(true);
-    // Simulate AI analysis
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    setResults([]);
 
-    const mockResults: HSCodeResult[] = [
-      {
-        code: "8471.30",
-        description: "휴대용 자동자료처리기계(무게 10kg 이하)",
-        confidence: 92,
-        rationale:
-          "제품 설명에서 '노트북', '휴대용', '컴퓨터'라는 키워드가 확인되었습니다. HS 코드 8471.30은 휴대용 자동자료처리기계를 분류하는 코드로, 무게 10kg 이하의 노트북 컴퓨터가 해당됩니다.",
-      },
-      {
-        code: "8471.41",
-        description: "기타 자동자료처리기계(시스템 형태)",
-        confidence: 78,
-        rationale:
-          "제품이 시스템 형태로 구성된 경우 이 코드가 적용될 수 있습니다. 다만 휴대용 특성이 강조되어 있어 8471.30이 더 적합할 것으로 판단됩니다.",
-      },
-      {
-        code: "8471.50",
-        description: "자동자료처리기계의 처리장치",
-        confidence: 65,
-        rationale:
-          "제품이 완제품이 아닌 처리장치 단독으로 수입되는 경우 이 코드를 고려할 수 있습니다. 그러나 완제품 노트북으로 보이므로 우선순위가 낮습니다.",
-      },
-    ];
+    try {
+      const response = await fetch("/api/hs-code", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ productDescription }),
+      });
 
-    setResults(mockResults);
-    setIsAnalyzing(false);
+      if (!response.ok) {
+        throw new Error("Failed to get HS code recommendations.");
+      }
+
+      const data: HSCodeResult[] = await response.json();
+      setResults(data);
+    } catch (error) {
+      console.error(error);
+      // You might want to show an error message to the user
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleReset = () => {
