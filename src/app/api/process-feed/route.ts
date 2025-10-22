@@ -63,7 +63,6 @@ async function summarizeText(text: string): Promise<string> {
   const prompt = `다음 뉴스 기사 내용을 한국어로 1문장에서 3문장으로 요약해줘. 핵심 내용만 간결하게 전달해야 해.:\n\n${text}`;
   const result = await model.generateContent(prompt);
   const response = result.response;
-  console.log("this is response", response);
 
   // 결과가 없거나 안전 설정에 의해 차단된 경우 에러를 던집니다.
   if (!response || response.promptFeedback?.blockReason) {
