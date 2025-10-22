@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import type React from 'react';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import type React from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   MessageCircle,
   Eye,
@@ -10,35 +10,35 @@ import {
   Mail,
   Lock,
   ArrowRight,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const router = useRouter();
   const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setIsLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -47,11 +47,11 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setError('이메일 또는 비밀번호가 잘못되었습니다.');
+      setError("이메일 또는 비밀번호가 잘못되었습니다.");
       setIsLoading(false);
     } else {
       // 로그인 성공 시 메인 페이지로 이동
-      router.push('/chat');
+      router.push("/news");
     }
   };
 
@@ -129,8 +129,8 @@ export default function LoginPage() {
 
           <div className="pt-6 border-t border-gray-200">
             <p className="text-sm text-gray-500">
-              전국 <span className="font-semibold text-blue-600">1,500+</span>{' '}
-              관세사가 사용 중
+              {/* 전국 <span className="font-semibold text-blue-600">1,500+</span>{" "}
+              관세사가 사용 중 */}
             </p>
           </div>
         </div>
@@ -182,7 +182,7 @@ export default function LoginPage() {
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <Input
                       id="password"
-                      type={showPassword ? 'text' : 'password'}
+                      type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -255,7 +255,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="pt-4 text-center text-sm text-gray-600">
-                  아직 계정이 없으신가요?{' '}
+                  아직 계정이 없으신가요?{" "}
                   <Link
                     href="/signup"
                     className="text-blue-600 hover:underline font-medium"
@@ -268,11 +268,11 @@ export default function LoginPage() {
           </Card>
 
           <p className="text-center text-xs text-gray-500 mt-6">
-            로그인하면 CustomBot의{' '}
+            로그인하면 CustomBot의{" "}
             <Link href="/terms" className="underline hover:text-gray-700">
               서비스 약관
-            </Link>{' '}
-            및{' '}
+            </Link>{" "}
+            및{" "}
             <Link href="/privacy" className="underline hover:text-gray-700">
               개인정보 처리방침
             </Link>

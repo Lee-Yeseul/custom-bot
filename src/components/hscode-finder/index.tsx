@@ -62,15 +62,15 @@ export default function HScodeFinder() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col h-full">
       {/* Header */}
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-6 py-6">
         <div className="mb-8">
-          <h2 className="font-sans text-3xl font-bold text-foreground">
+          <h3 className="font-sans text-2xl font-bold text-foreground">
             HS 코드 분류 AI
-          </h2>
+          </h3>
           <p className="mt-2 font-sans text-base text-muted-foreground leading-relaxed">
             제품 설명을 입력하면 AI가 적합한 HS 코드 3개를 추천해드립니다
           </p>
