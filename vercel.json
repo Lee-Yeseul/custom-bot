@@ -2,6 +2,7 @@
   "crons": [
     {
       "path": "/api/process-feed",
+      "method": "POST",
       "schedule": "0 0 * * *"
     }
   ]
