@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     //     - `rlbrCn` (반출입내용) or other status fields -> `description` (for history entries) [cite: 174]
 
     // Placeholder for parsed and transformed data
-    let transformedData: any = null; // Replace with your actual transformation logic
+    let transformedData: unknown = null; // Replace with your actual transformation logic
 
     // Example of handling an API response containing an error (tCnt = -1)
     if (xmlData.includes("<tCnt>-1</tCnt>")) {

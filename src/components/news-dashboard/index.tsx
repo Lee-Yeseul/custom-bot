@@ -93,7 +93,7 @@ export default function NewsDashboard() {
 
         setGroupedNews(grouped);
         setSortedCategories(sorted);
-      } catch (err: any) {
+      } catch (err) {
         console.error("Error fetching news data:", err);
         setError("최신 보도자료를 불러오는 데 실패했습니다.");
       } finally {
