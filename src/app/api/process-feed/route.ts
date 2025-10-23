@@ -76,7 +76,7 @@ async function summarizeText(text: string): Promise<string> {
   return data;
 }
 
-export async function POST() {
+export async function GET() {
   const startTime = Date.now();
 
   try {
